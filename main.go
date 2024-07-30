@@ -4,9 +4,9 @@ import (
 	"html/template"
 	"log"
 
-	"github.com/guidewire/fern-reporter/config"
-	"github.com/guidewire/fern-reporter/pkg/api/routers"
-	"github.com/guidewire/fern-reporter/pkg/db"
+	"fern-reporter/config"
+	"fern-reporter/pkg/api/routers"
+	"fern-reporter/pkg/db"
 
 	"time"
 

@@ -11,7 +11,7 @@ import (
 	p "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/golang-migrate/migrate/v4/source/pkger"
-	"github.com/guidewire/fern-reporter/config"
+	"fern-reporter/config"
 	"github.com/markbates/pkger"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

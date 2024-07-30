@@ -19,8 +19,8 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"github.com/guidewire/fern-reporter/pkg/api/handlers"
-	"github.com/guidewire/fern-reporter/pkg/models"
+	"fern-reporter/pkg/api/handlers"
+	"fern-reporter/pkg/models"
 )
 
 var (

@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/guidewire/fern-reporter/pkg/models"
+	"fern-reporter/config"
+
+	"fern-reporter/pkg/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -95,13 +97,13 @@ func (h *Handler) GetTestRunAll(c *gin.Context) {
 	c.JSON(http.StatusOK, testRuns)
 }
 
-func (h *Handler) GetTestRunByID(c *gin.Context) {
-	var testRun models.TestRun
-	id := c.Param("id")
-	h.db.Where("id = ?", id).First(&testRun)
-	c.JSON(http.StatusOK, testRun)
+//func (h *Handler) GetTestRunByID(c *gin.Context) {
+//	var testRun models.TestRun
+//	id := c.Param("id")
+//	h.db.Where("id = ?", id).First(&testRun)
+//	c.JSON(http.StatusOK, testRun)
 
-}
+//}
 
 func (h *Handler) UpdateTestRun(c *gin.Context) {
 	var testRun models.TestRun
@@ -149,7 +151,8 @@ func (h *Handler) ReportTestRunAll(c *gin.Context) {
 	var testRuns []models.TestRun
 	h.db.Preload("SuiteRuns.SpecRuns.Tags").Find(&testRuns)
 	c.HTML(http.StatusOK, "test_runs.html", gin.H{
-		"testRuns": testRuns,
+		"reportHeader": config.GetHeaderName(),
+		"testRuns":     testRuns,
 	})
 }
 
@@ -158,12 +161,23 @@ func (h *Handler) ReportTestRunById(c *gin.Context) {
 	id := c.Param("id")
 	h.db.Preload("SuiteRuns.SpecRuns").Where("id = ?", id).First(&testRun)
 	c.HTML(http.StatusOK, "test_runs.html", gin.H{
-		"testRuns": []models.TestRun{testRun},
+		"reportHeader": config.GetHeaderName(),
+		"testRuns":     []models.TestRun{testRun},
 	})
 }
 
 func (h *Handler) Ping(c *gin.Context) {
 	c.JSON(200, gin.H{
-		"message": "Fern Reporter is running!",
+		"message": "Fern Reporter is again running!",
 	})
 }
+
+//func (h *Handler) Ping(c *gin.Context) {
+//	req := &pb.PingRequest{}
+//	res, err := h.db.Ping(context.Background(), req)
+//	if err != nil {
+//		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+//		return
+//	}
+//	c.JSON(http.StatusOK, gin.H{"messages": res.GetMessage()})
+//}
