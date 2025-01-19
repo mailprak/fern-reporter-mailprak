@@ -11,6 +11,7 @@ type TimeLog struct {
 
 type TestRun struct {
 	ID              uint64     `json:"id" gorm:"primaryKey"`
+	Name			string	   `json:"name"`
 	TestProjectName string     `json:"test_project_name"`
 	TestSeed        uint64     `json:"test_seed"`
 	StartTime       time.Time  `json:"start_time"`

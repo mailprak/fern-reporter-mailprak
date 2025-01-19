@@ -49,6 +49,8 @@ func initServer() {
 	gin.SetMode(gin.DebugMode)
 	router := gin.Default()
 
+  go startGRPCServer() // Start the gRPC server in a separate goroutine
+
 	if config.GetAuth().Enabled {
 		checkAuthConfig()
 		configJWTMiddleware(router)
