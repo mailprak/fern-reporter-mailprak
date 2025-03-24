@@ -26,8 +26,16 @@ clean:
 	@GOBIN=$(GOBIN) go clean
 	@rm -f $(GOBIN)/$(BINARY_NAME)
 
+proto-generate:
+	rm -rf ./grpcfiles/fernreporter_pb
+	mkdir ./grpcfiles/fernreporter_pb
+	protoc --go_out=./grpcfiles/fernreporter_pb  \
+       --go-grpc_out=./grpcfiles/fernreporter_pb  \
+       ./grpcfiles/fern-reporter.proto
+
+
 # Cross-compilation with gox
-cross-compile:
+cross-compile: proto-generate
 	@echo "🛠️ Cross compiling for Linux and Mac..."
 	@gox -osarch="linux/amd64 darwin/amd64" -output "$(GOBIN)/$(BINARY_NAME)_{{.OS}}_{{.Arch}}" $(GOPKG)
 

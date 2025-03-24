@@ -9,19 +9,13 @@ import (
 	"net"
 	"strconv"
 
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	"github.com/guidewire/fern-reporter/config"
-	"github.com/guidewire/fern-reporter/grpcfiles/createtestrun"
-	"github.com/guidewire/fern-reporter/grpcfiles/deletetestrun"
-	"github.com/guidewire/fern-reporter/grpcfiles/gettestrunall"
-	gtid "github.com/guidewire/fern-reporter/grpcfiles/gettestrunbyid"
-	"github.com/guidewire/fern-reporter/grpcfiles/processtags"
-	pb "github.com/guidewire/fern-reporter/grpcfiles/reporter"
-	"github.com/guidewire/fern-reporter/grpcfiles/reporttestrunall"
-	"github.com/guidewire/fern-reporter/grpcfiles/reporttestrunbyid"
-	"github.com/guidewire/fern-reporter/grpcfiles/updatetestrun"
+	"github.com/guidewire/fern-reporter/grpcfiles/fernreporter_pb"
 	"github.com/guidewire/fern-reporter/pkg/models"
 
 	"google.golang.org/grpc"
@@ -29,98 +23,52 @@ import (
 )
 
 type grpcServer struct {
-	pb.UnimplementedReporterServer
-}
-
-type server struct {
-	pb.UnimplementedPingServiceServer
-}
-
-type servertestbyid struct {
-	gtid.UnimplementedTestRunServiceServer
+	fernreporter_pb.UnimplementedFernReporterServiceServer
 	db *gorm.DB
 }
 
-type TestServiceServer struct {
-	gettestrunall.UnimplementedTestServiceServer
-	db *gorm.DB
-}
-
-// Define the TestRunServiceServer implementation
-type TestRunServiceServerid struct {
-	reporttestrunbyid.UnimplementedTestRunServiceServer
-	db *gorm.DB
-}
-
-// Implement the TestRunServiceServer interface for reporttestrunall
-type TestRunServiceServer struct {
-	reporttestrunall.UnimplementedTestRunServiceServer
-	db *gorm.DB
-}
-
-// Define the TestRunServiceServer implementation
-type TestRunServiceServerDelete struct {
-	deletetestrun.UnimplementedTestRunServiceServer
-	db *gorm.DB
-}
-
-type Server struct {
-	db *gorm.DB
-	updatetestrun.UnimplementedTestRunServiceServer
-}
-
-type tagServiceServer struct {
-	processtags.UnimplementedTagServiceServer
-	db *gorm.DB
-}
-
-type testRunServiceServer struct {
-	createtestrun.UnimplementedTestRunServiceServer
-	db *gorm.DB
-}
-
-func (s *grpcServer) SendReport(ctx context.Context, req *pb.ReportRequest) (*pb.ReportResponse, error) {
+func (s *grpcServer) SendReport(ctx context.Context, req *fernreporter_pb.ReportRequest) (*fernreporter_pb.ReportResponse, error) {
 	log.Printf("Received gRPC report: %s", req.Message)
-	return &pb.ReportResponse{Status: "Report received successfully"}, nil
+	return &fernreporter_pb.ReportResponse{Status: "Report received successfully"}, nil
 }
 
 // Correct method signature (use types from the generated pb package)
-func (s *server) Ping(ctx context.Context, req *pb.PingRequest) (*pb.PingResponse, error) {
+func (s *grpcServer) Ping(ctx context.Context, req *fernreporter_pb.PingRequest) (*fernreporter_pb.PingResponse, error) {
 	log.Printf("Received message: %s", req.GetMessage())
-	return &pb.PingResponse{Message: "Pong"}, nil
+	return &fernreporter_pb.PingResponse{Message: "Pong"}, nil
 }
 
 // Implement ReportTestRunById
-func (s *TestRunServiceServerid) ReportTestRunById(ctx context.Context, req *reporttestrunbyid.ReportTestRunByIdRequest) (*reporttestrunbyid.ReportTestRunByIdResponse, error) {
+func (s *grpcServer) ReportTestRunById(ctx context.Context, req *fernreporter_pb.ReportTestRunByIdRequest) (*fernreporter_pb.ReportTestRunByIdResponse, error) {
 	var testRun models.TestRun
 
 	// Parse ID
-	testRunID, err := strconv.Atoi(req.Id)
-	if err != nil {
-		return nil, fmt.Errorf("invalid ID format")
-	}
+	testRunID := req.Id
+	//if err != nil {
+	//	return nil, fmt.Errorf("invalid ID format")
+	//}
 
 	// Query database with preloading related fields
 	s.db.Preload("SuiteRuns.SpecRuns").Where("id = ?", testRunID).First(&testRun)
 
 	// Map database model to protobuf
-	var pbSuiteRuns []*reporttestrunbyid.SuiteRun
+	var pbSuiteRuns []*fernreporter_pb.SuiteRun
 	for _, sr := range testRun.SuiteRuns {
-		var pbSpecRuns []*reporttestrunbyid.SpecRun
+		var pbSpecRuns []*fernreporter_pb.SpecRun
 		for _, spec := range sr.SpecRuns {
-			var pbTags []*reporttestrunbyid.Tag
+			var pbTags []*fernreporter_pb.Tag
 			for _, tag := range spec.Tags {
-				pbTags = append(pbTags, &reporttestrunbyid.Tag{Name: tag.Name})
+				pbTags = append(pbTags, &fernreporter_pb.Tag{Name: tag.Name})
 			}
-			pbSpecRuns = append(pbSpecRuns, &reporttestrunbyid.SpecRun{Tags: pbTags})
+			pbSpecRuns = append(pbSpecRuns, &fernreporter_pb.SpecRun{Tags: pbTags})
 		}
-		pbSuiteRuns = append(pbSuiteRuns, &reporttestrunbyid.SuiteRun{SpecRuns: pbSpecRuns})
+		pbSuiteRuns = append(pbSuiteRuns, &fernreporter_pb.SuiteRun{SpecRuns: pbSpecRuns})
 	}
 
 	// Return response
-	return &reporttestrunbyid.ReportTestRunByIdResponse{
+	return &fernreporter_pb.ReportTestRunByIdResponse{
 		ReportHeader: "Report Header", // Replace with actual header logic
-		TestRun: &reporttestrunbyid.TestRun{
+		TestRun: &fernreporter_pb.TestRun{
 			Id:        strconv.Itoa(testRunID), // Convert ID back to string
 			SuiteRuns: pbSuiteRuns,
 		},
@@ -128,45 +76,45 @@ func (s *TestRunServiceServerid) ReportTestRunById(ctx context.Context, req *rep
 }
 
 // reporttestrunall
-func (s *TestRunServiceServer) ReportTestRunAll(ctx context.Context, req *reporttestrunall.ReportTestRunAllRequest) (*reporttestrunall.ReportTestRunAllResponse, error) {
+func (s *grpcServer) ReportTestRunAll(ctx context.Context, empty *emptypb.Empty) (*fernreporter_pb.ReportTestRunAllResponse, error) {
 	var testRuns []models.TestRun
 	s.db.Preload("SuiteRuns.SpecRuns.Tags").Find(&testRuns)
 
 	// Convert database model to protobuf response
-	var pbTestRuns []*reporttestrunall.TestRun
+	var pbTestRuns []*fernreporter_pb.TestRun
 	for _, tr := range testRuns {
-		var pbSuiteRuns []*reporttestrunall.SuiteRun
+		var pbSuiteRuns []*fernreporter_pb.SuiteRun
 		for _, sr := range tr.SuiteRuns {
-			var pbSpecRuns []*reporttestrunall.SpecRun
+			var pbSpecRuns []*fernreporter_pb.SpecRun
 			for _, spec := range sr.SpecRuns {
-				var pbTags []*reporttestrunall.Tag
+				var pbTags []*fernreporter_pb.Tag
 				for _, tag := range spec.Tags {
-					pbTags = append(pbTags, &reporttestrunall.Tag{Name: tag.Name})
+					pbTags = append(pbTags, &fernreporter_pb.Tag{Name: tag.Name})
 				}
-				pbSpecRuns = append(pbSpecRuns, &reporttestrunall.SpecRun{Tags: pbTags})
+				pbSpecRuns = append(pbSpecRuns, &fernreporter_pb.SpecRun{Tags: pbTags})
 			}
-			pbSuiteRuns = append(pbSuiteRuns, &reporttestrunall.SuiteRun{SpecRuns: pbSpecRuns})
+			pbSuiteRuns = append(pbSuiteRuns, &fernreporter_pb.SuiteRun{SpecRuns: pbSpecRuns})
 		}
-		pbTestRuns = append(pbTestRuns, &reporttestrunall.TestRun{
+		pbTestRuns = append(pbTestRuns, &fernreporter_pb.TestRun{
 			Id:        strconv.FormatUint(tr.ID, 10),
 			SuiteRuns: pbSuiteRuns,
 		})
 	}
 
-	return &reporttestrunall.ReportTestRunAllResponse{
+	return &fernreporter_pb.ReportTestRunAllResponse{
 		ReportHeader: config.GetHeaderName(),
 		TestRuns:     pbTestRuns,
 	}, nil
 }
 
 // Implement DeleteTestRun
-func (s *TestRunServiceServer) DeleteTestRun(ctx context.Context, req *deletetestrun.DeleteTestRunRequest) (*deletetestrun.DeleteTestRunResponse, error) {
+func (s *grpcServer) DeleteTestRun(ctx context.Context, req *fernreporter_pb.DeleteTestRunRequest) (*fernreporter_pb.DeleteTestRunResponse, error) {
 	var testRun models.TestRun
 
 	// Parse ID
 	testRunID, err := strconv.Atoi(req.Id)
 	if err != nil {
-		return &deletetestrun.DeleteTestRunResponse{
+		return &fernreporter_pb.DeleteTestRunResponse{
 			Success: false,
 			Message: "Invalid ID format",
 		}, nil
@@ -178,31 +126,31 @@ func (s *TestRunServiceServer) DeleteTestRun(ctx context.Context, req *deletetes
 	result := s.db.Delete(&testRun)
 	if result.Error != nil {
 		// Database error
-		return &deletetestrun.DeleteTestRunResponse{
+		return &fernreporter_pb.DeleteTestRunResponse{
 			Success: false,
 			Message: "Error deleting test run",
 		}, nil
 	} else if result.RowsAffected == 0 {
 		// No rows affected (test run not found)
-		return &deletetestrun.DeleteTestRunResponse{
+		return &fernreporter_pb.DeleteTestRunResponse{
 			Success: false,
 			Message: "Test run not found",
 		}, nil
 	}
 
 	// Success response
-	return &deletetestrun.DeleteTestRunResponse{
+	return &fernreporter_pb.DeleteTestRunResponse{
 		Success: true,
 		Message: "Test run deleted successfully",
 	}, nil
 }
 
-func (s *Server) UpdateTestRun(ctx context.Context, req *updatetestrun.UpdateTestRunRequest) (*updatetestrun.TestRunResponse, error) {
+func (s *grpcServer) UpdateTestRun(ctx context.Context, req *fernreporter_pb.UpdateTestRunRequest) (*fernreporter_pb.UpdateTestRunResponse, error) {
 	var testRun models.TestRun
 
 	// Find the TestRun by ID
 	if err := s.db.Where("id = ?", req.GetId()).First(&testRun).Error; err != nil {
-		return &updatetestrun.TestRunResponse{
+		return &fernreporter_pb.UpdateTestRunResponse{
 			Success: false,
 			Message: "TestRun not found",
 		}, fmt.Errorf("TestRun not found: %v", err)
@@ -213,24 +161,24 @@ func (s *Server) UpdateTestRun(ctx context.Context, req *updatetestrun.UpdateTes
 
 	// Save the updated TestRun in the database
 	if err := s.db.Save(&testRun).Error; err != nil {
-		return &updatetestrun.TestRunResponse{
+		return &fernreporter_pb.UpdateTestRunResponse{
 			Success: false,
 			Message: "Failed to update TestRun",
 		}, fmt.Errorf("failed to update TestRun: %v", err)
 	}
 
 	// Return success response with updated TestRun
-	return &updatetestrun.TestRunResponse{
+	return &fernreporter_pb.UpdateTestRunResponse{
 		Success: true,
 		Message: "TestRun updated successfully",
-		TestRun: &updatetestrun.TestRun{
+		TestRun: &fernreporter_pb.TestRun{
 			Id:   strconv.FormatUint(testRun.ID, 10),
 			Name: testRun.TestProjectName, // Include other fields as needed
 		},
 	}, nil
 }
 
-func (s *servertestbyid) GetTestRunByID(ctx context.Context, req *gtid.GetTestRunByIDRequest) (*gtid.GetTestRunByIDResponse, error) {
+func (s *grpcServer) GetTestRunByID(ctx context.Context, req *fernreporter_pb.GetTestRunByIDRequest) (*fernreporter_pb.GetTestRunByIDResponse, error) {
 	var testRun models.TestRun
 	id := req.GetId()
 	result := s.db.Where("id = ?", id).First(&testRun)
@@ -238,49 +186,42 @@ func (s *servertestbyid) GetTestRunByID(ctx context.Context, req *gtid.GetTestRu
 		return nil, result.Error
 	}
 
-	response := &gtid.GetTestRunByIDResponse{
-		TestRun: &gtid.TestRun{
-			Id: strconv.FormatUint(testRun.ID, 10),
-			// Add other fields here
-		},
+	response := &fernreporter_pb.GetTestRunByIDResponse{
+		TestRun: convertTestRunToProto(testRun),
 	}
 	return response, nil
 }
 
-func (s *TestServiceServer) GetTestRunAll(ctx context.Context, req *gettestrunall.EmptyRequest) (*gettestrunall.TestRunList, error) {
+func (s *grpcServer) GetTestRunAll(ctx context.Context, empty *emptypb.Empty) (*fernreporter_pb.GetTestRunAllResponse, error) {
 	var testRuns []models.TestRun
 	if err := s.db.Find(&testRuns).Error; err != nil {
 		return nil, err
 	}
 
 	// Convert testRuns to gRPC message format
-	var grpcTestRuns []*gettestrunall.TestRun
+	var grpcTestRuns []*fernreporter_pb.TestRun
 	for _, t := range testRuns {
-		grpcTestRuns = append(grpcTestRuns, &gettestrunall.TestRun{
-			Id:     t.ID,
-			Name:   t.TestProjectName,
-			Status: t.StartTime.String(),
-		})
+		grpcTestRuns = append(grpcTestRuns, convertTestRunToProto(t))
 	}
 
-	return &gettestrunall.TestRunList{TestRuns: grpcTestRuns}, nil
+	return &fernreporter_pb.GetTestRunAllResponse{TestRuns: grpcTestRuns}, nil
 }
 
-func ProcessTags(db *gorm.DB, testRun *processtags.TestRun) (*processtags.ProcessTagsResponse, error) {
+func ProcessTags(db *gorm.DB, testRun *fernreporter_pb.TestRun) (*fernreporter_pb.ProcessTagsResponse, error) {
 	// Process the tags as before
 	for i, suite := range testRun.SuiteRuns {
 		for j, spec := range suite.SpecRuns {
-			var processedTags []*processtags.Tag // Use pointer slice
+			var processedTags []*fernreporter_pb.Tag // Use pointer slice
 
 			for _, tag := range spec.Tags {
-				var existingTag processtags.Tag
+				var existingTag fernreporter_pb.Tag
 
 				// Check if the tag already exists
 				result := db.Where("name = ?", tag.Name).First(&existingTag)
 
 				if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 					// If the tag does not exist, create a new one
-					newTag := &processtags.Tag{Name: tag.Name} // Use pointer directly
+					newTag := &fernreporter_pb.Tag{Name: tag.Name} // Use pointer directly
 					if err := db.Create(newTag).Error; err != nil {
 						return nil, err // Return error if tag creation fails
 					}
@@ -298,19 +239,19 @@ func ProcessTags(db *gorm.DB, testRun *processtags.TestRun) (*processtags.Proces
 		}
 	}
 
-	return &processtags.ProcessTagsResponse{
+	return &fernreporter_pb.ProcessTagsResponse{
 		ErrorMessage: "Tags processed successfully",
 	}, nil
 }
 
 // Convert via JSON
-func convertTestRun(source *createtestrun.TestRun) (*processtags.TestRun, error) {
+func convertTestRun(source *fernreporter_pb.TestRun) (*fernreporter_pb.TestRun, error) {
 	jsonBytes, err := json.Marshal(source) // Serialize source
 	if err != nil {
 		return nil, err
 	}
 
-	var target processtags.TestRun
+	var target fernreporter_pb.TestRun
 	err = json.Unmarshal(jsonBytes, &target) // Deserialize into target
 	if err != nil {
 		return nil, err
@@ -319,7 +260,7 @@ func convertTestRun(source *createtestrun.TestRun) (*processtags.TestRun, error)
 	return &target, nil
 }
 
-func (s *testRunServiceServer) CreateTestRun(ctx context.Context, req *createtestrun.CreateTestRunRequest) (*createtestrun.CreateTestRunResponse, error) {
+func (s *grpcServer) CreateTestRun(ctx context.Context, req *fernreporter_pb.CreateTestRunRequest) (*fernreporter_pb.CreateTestRunResponse, error) {
 	testRun := req.GetTestRun()
 
 	// Check if it's a new record
@@ -329,7 +270,7 @@ func (s *testRunServiceServer) CreateTestRun(ctx context.Context, req *createtes
 	if !isNewRecord {
 		var existingTestRun models.TestRun
 		if err := s.db.Where("id = ?", testRun.GetId()).First(&existingTestRun).Error; err != nil {
-			return &createtestrun.CreateTestRunResponse{Success: false, ErrorMessage: "record not found"}, err
+			return &fernreporter_pb.CreateTestRunResponse{Success: false, ErrorMessage: "record not found"}, err
 		}
 	}
 
@@ -341,7 +282,7 @@ func (s *testRunServiceServer) CreateTestRun(ctx context.Context, req *createtes
 	// Process tags (assuming ProcessTags function exists)
 	response, err := ProcessTags(s.db, mappedTestRun)
 	if err != nil {
-		return &createtestrun.CreateTestRunResponse{
+		return &fernreporter_pb.CreateTestRunResponse{
 			Success: false,
 			//	ErrorMessage: err.Error(),
 			ErrorMessage: response.ErrorMessage,
@@ -356,13 +297,13 @@ func (s *testRunServiceServer) CreateTestRun(ctx context.Context, req *createtes
 	}
 
 	if err := s.db.Save(&testRunModel).Error; err != nil {
-		return &createtestrun.CreateTestRunResponse{Success: false, ErrorMessage: "error saving record"}, err
+		return &fernreporter_pb.CreateTestRunResponse{Success: false, ErrorMessage: "error saving record"}, err
 	}
 
 	// Return the saved test run as part of the response
-	return &createtestrun.CreateTestRunResponse{
+	return &fernreporter_pb.CreateTestRunResponse{
 		Success: true,
-		TestRun: &createtestrun.TestRun{Id: int64(testRunModel.ID), Name: testRunModel.TestProjectName}, // Map other fields
+		TestRun: &fernreporter_pb.TestRun{Id: int64(testRunModel.ID), Name: testRunModel.TestProjectName}, // Map other fields
 	}, nil
 }
 
@@ -374,39 +315,17 @@ func StartGRPCServer(context context.Context) {
 		log.Fatalf("Failed to listen on port 50051: %v", err)
 	}
 
-	s := grpc.NewServer()
-	pb.RegisterReporterServer(s, &grpcServer{})
-
-	// testid starts here
 	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
-	pb.RegisterPingServiceServer(s, &server{}) // Register server
 
-	// Register the reporttestrunbyid service
-	reporttestrunbyid.RegisterTestRunServiceServer(s, &TestRunServiceServerid{db: db})
-	// Register the service
-	reporttestrunall.RegisterTestRunServiceServer(s, &TestRunServiceServer{db: db})
-	//deletetestrun
-	deletetestrun.RegisterTestRunServiceServer(s, &TestRunServiceServerDelete{db: db})
-	//updatetestrun
-	updatetestrun.RegisterTestRunServiceServer(s, &Server{db: db})
-	//gettestrunall and gettetsrunbyid
-	gtid.RegisterTestRunServiceServer(s, &servertestbyid{db: db})
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
+	s := grpc.NewServer()
+	fernreporter_pb.RegisterFernReporterServiceServer(s, &grpcServer{db: db})
 
-	testService := &TestServiceServer{db: db}
-	gettestrunall.RegisterTestServiceServer(s, testService)
-	// processtags
-	tagService := &tagServiceServer{db: db}
-	// Register the service
-	processtags.RegisterTagServiceServer(s, tagService)
-	// createtestrun
-	testRunService := &testRunServiceServer{db: db}
-	createtestrun.RegisterTestRunServiceServer(s, testRunService)
+	//if err := s.Serve(lis); err != nil {
+	//	log.Fatalf("failed to serve: %v", err)
+	//}
 
 	// Enable reflection for testing
 	reflection.Register(s)
@@ -419,4 +338,62 @@ func StartGRPCServer(context context.Context) {
 		}
 	}()
 
+}
+
+// Convert TestRun struct
+func convertTestRunToProto(testRun models.TestRun) *fernreporter_pb.TestRun {
+	return &fernreporter_pb.TestRun{
+		Id:              testRun.ID,
+		TestProjectName: testRun.TestProjectName,
+		TestSeed:        testRun.TestSeed,
+		StartTime:       timestamppb.New(testRun.StartTime),
+		EndTime:         timestamppb.New(testRun.EndTime),
+		SuiteRuns:       convertSuiteRunsToProto(testRun.SuiteRuns),
+	}
+}
+
+// Convert a slice of SuiteRun structs
+func convertSuiteRunsToProto(suiteRuns []models.SuiteRun) []*fernreporter_pb.SuiteRun {
+	var protoSuiteRuns []*fernreporter_pb.SuiteRun
+	for _, suiteRun := range suiteRuns {
+		protoSuiteRuns = append(protoSuiteRuns, &fernreporter_pb.SuiteRun{
+			Id:        suiteRun.ID,
+			TestRunId: suiteRun.TestRunID,
+			SuiteName: suiteRun.SuiteName,
+			StartTime: timestamppb.New(suiteRun.StartTime),
+			EndTime:   timestamppb.New(suiteRun.EndTime),
+			SpecRuns:  convertSpecRunsToProto(suiteRun.SpecRuns),
+		})
+	}
+	return protoSuiteRuns
+}
+
+// Convert a slice of SpecRun structs
+func convertSpecRunsToProto(specRuns []models.SpecRun) []*fernreporter_pb.SpecRun {
+	var protoSpecRuns []*fernreporter_pb.SpecRun
+	for _, specRun := range specRuns {
+		protoSpecRuns = append(protoSpecRuns, &fernreporter_pb.SpecRun{
+			Id:              specRun.ID,
+			SuiteId:         specRun.SuiteID,
+			SpecDescription: specRun.SpecDescription,
+			Status:          specRun.Status,
+			Message:         specRun.Message,
+			Tags:            convertTagsToProto(specRun.Tags),
+			StartTime:       timestamppb.New(specRun.StartTime),
+			EndTime:         timestamppb.New(specRun.EndTime),
+		})
+	}
+	return protoSpecRuns
+}
+
+// Convert a slice of Tag structs
+func convertTagsToProto(tags []models.Tag) []*fernreporter_pb.Tag {
+	var protoTags []*fernreporter_pb.Tag
+	for _, tag := range tags {
+		protoTags = append(protoTags, &fernreporter_pb.Tag{
+			Id:   tag.ID,
+			Name: tag.Name,
+		})
+	}
+	return protoTags
 }
