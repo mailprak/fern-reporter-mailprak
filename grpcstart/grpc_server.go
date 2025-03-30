@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 
 	"google.golang.org/protobuf/types/known/emptypb"
 	"gorm.io/driver/sqlite"
@@ -115,6 +116,46 @@ func (s *grpcServer) GetTestSummary(ctx context.Context, req *fernreporter_pb.Ge
 	return &fernreporter_pb.GetTestSummaryResponse{
 		TestSummaries: grpcTestSummaries,
 	}, nil
+}
+
+func (s *grpcServer) ReportTestInsights(ctx context.Context, req *fernreporter_pb.ReportTestInsightsRequest) (*fernreporter_pb.ReportTestInsightsResponse, error) {
+	projectName := req.GetProjectName()
+	startTimeInput := req.GetStartTime()
+	endTimeInput := req.GetEndTime()
+
+	startTime := convertProtoTimestamp(startTimeInput)
+	endTime := convertProtoTimestamp(endTimeInput)
+	if startTime.IsZero() {
+		startTime = time.Now().AddDate(-1, 0, 0)
+	}
+	if endTime.IsZero() {
+		endTime = time.Now()
+	}
+	longestTestRuns := GetLongestTestRuns(s.db, projectName, startTime, endTime)
+	numTests := len(longestTestRuns)
+	if len(longestTestRuns) > 10 {
+		longestTestRuns = longestTestRuns[:10] //only send top 10 longest runs to display
+	}
+
+	averageDuration := GetAverageDuration(s.db, projectName, startTime, endTime)
+	fmt.Printf("longestTestRuns: %v\n", longestTestRuns)
+	fmt.Printf("averageDuration: %v\n", averageDuration)
+
+	var grpcLongestTestRuns []*fernreporter_pb.TestRunInsight
+	for _, t := range longestTestRuns {
+		grpcLongestTestRuns = append(grpcLongestTestRuns, ConvertTestRunInsightToProto(t))
+	}
+
+	return &fernreporter_pb.ReportTestInsightsResponse{
+		ReportHeader:    "Fern Report", //config.GetHeaderName()
+		ProjectName:     projectName,
+		StartTime:       startTimeInput,
+		EndTime:         endTimeInput,
+		AverageDuration: float32(averageDuration),
+		LongestTestRuns: grpcLongestTestRuns,
+		NumTests:        int64(numTests),
+	}, nil
+
 }
 
 // Implement DeleteTestRun

@@ -1,0 +1,203 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "./;fernreporter_pb";
+
+package fernReporter;
+
+service FernReporterService {
+  rpc Ping (PingRequest) returns (PingResponse);
+
+  rpc GetTestRunAll (google.protobuf.Empty) returns (GetTestRunAllResponse);
+  rpc GetTestRunByID (GetTestRunByIDRequest) returns (GetTestRunByIDResponse);
+
+  rpc CreateTestRun (CreateTestRunRequest) returns (CreateTestRunResponse);
+  rpc UpdateTestRun (UpdateTestRunRequest) returns (UpdateTestRunResponse);
+  rpc DeleteTestRun (DeleteTestRunRequest) returns (DeleteTestRunResponse);
+  rpc ReportTestRunAll(google.protobuf.Empty) returns (ReportTestRunAllResponse);
+  rpc ReportTestRunByID (ReportTestRunByIdRequest) returns (ReportTestRunByIdResponse);
+  rpc ProcessTags (ProcessTagsRequest) returns (ProcessTagsResponse);
+  rpc GetProjectAll (google.protobuf.Empty) returns (GetProjectAllResponse);
+  rpc GetTestSummary (GetTestSummaryRequest) returns (GetTestSummaryResponse);
+  rpc ReportTestInsights (ReportTestInsightsRequest) returns (ReportTestInsightsResponse);
+
+  //To Do: Why do we need this one?
+  rpc SendReport (ReportRequest) returns (ReportResponse);
+}
+
+
+enum Status {
+  SUCCESS = 0;
+  FAILURE = 1;
+}
+
+message ReportTestRunByIdRequest {
+  uint64 id = 1;
+}
+
+message ReportTestRunByIdResponse {
+  string reportHeader = 1;
+  TestRun testRun = 2;
+}
+
+message ReportTestRunAllResponse {
+  string reportHeader = 1;
+  repeated TestRun testRuns = 2;
+  int64 totalTests = 3;
+  int64 executedTests = 4;
+  int64 passedTests = 5;
+  int64 failedTests = 6;
+}
+
+message ReportRequest {
+  string message = 1;
+}
+
+message ReportResponse {
+  string status = 1;
+}
+
+message ProcessTagsRequest {
+  TestRun test_run = 1;
+}
+
+message ProcessTagsResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message Tag {
+  uint64 id = 1;
+  string name = 2;
+}
+
+message SpecRun {
+  uint64 id = 1;
+  uint64 suiteId = 2;
+  string specDescription = 3;
+  string status = 4;
+  string message = 5;
+  repeated Tag tags = 6;
+  google.protobuf.Timestamp startTime = 7;
+  google.protobuf.Timestamp endTime = 8;
+
+}
+
+message SuiteRun {
+  uint64 id = 1;
+  uint64 testRunId = 2;
+  string suiteName = 3;
+  google.protobuf.Timestamp startTime = 4;
+  google.protobuf.Timestamp endTime = 5;
+  repeated SpecRun specRuns = 6;
+
+}
+
+message TestRun {
+  uint64 id = 1;
+  string testProjectName = 2;
+  uint64 testSeed = 3;
+  google.protobuf.Timestamp startTime = 4;
+  google.protobuf.Timestamp endTime = 5;
+  repeated SuiteRun suiteRuns = 6;
+
+}
+
+message TestSummary {
+  uint64 suiteRunId = 1;
+  string suiteName = 2;
+  string testProjectName =3;
+  google.protobuf.Timestamp startTime = 4;
+  int64 totalPassedSpecRuns = 5;
+  int64 totalSkippedSpecRuns = 6;
+  int64 totalSpecRuns = 7;
+}
+
+message TestRunInsight {
+  uint64 suiteRunId = 1;
+  string testProjectName = 2;
+  google.protobuf.Timestamp startTime = 3;
+  google.protobuf.Timestamp endTime = 4;
+  float passRate = 5;
+}
+
+message PingRequest {
+  string message = 1;
+}
+
+message PingResponse {
+  string message = 1;
+}
+
+message GetTestRunByIDRequest {
+  uint64 id = 1;
+}
+
+message GetTestRunByIDResponse {
+  TestRun test_run = 1;
+}
+
+message GetTestRunAllResponse {
+  repeated TestRun test_runs = 1;
+}
+
+message  CreateTestRunRequest {
+  TestRun test_run = 1;
+}
+
+message  CreateTestRunResponse {
+  Status status = 1;
+  string message = 2;
+  TestRun test_run = 3;
+}
+
+message  UpdateTestRunRequest {
+  TestRun test_run = 1;
+}
+
+message  UpdateTestRunResponse {
+  Status status = 1;
+  string message = 2;
+  TestRun test_run = 3;
+}
+
+message  DeleteTestRunRequest {
+  uint64 id = 1;
+}
+
+message  DeleteTestRunResponse {
+  Status status = 1;
+  string message = 2;
+  TestRun test_run = 3;
+}
+
+message GetProjectAllResponse {
+  repeated string projects = 1;
+}
+
+message GetTestSummaryRequest {
+  string projectName = 1;
+}
+
+message GetTestSummaryResponse {
+  string reportHeader = 1;
+  repeated TestSummary testSummaries = 2;
+}
+
+message ReportTestInsightsRequest {
+  string projectName = 1;
+  google.protobuf.Timestamp startTime = 2;
+  google.protobuf.Timestamp endTime = 3;
+}
+
+message ReportTestInsightsResponse {
+  string reportHeader = 1;
+  string projectName = 2;
+  google.protobuf.Timestamp startTime = 3;
+  google.protobuf.Timestamp endTime = 4;
+  float averageDuration = 5;
+  repeated TestRunInsight longestTestRuns = 6;
+  int64 numTests = 7;
+}
